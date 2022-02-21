@@ -1,1 +1,2 @@
+Pillow==8.4.0
 selenium==4.1.0
