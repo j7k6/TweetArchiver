@@ -10,17 +10,17 @@ pip install -r requirements.txt
 ## Usage
 Archive all tweets:
 ```bash
-python3 app.py POTUS
+python app.py POTUS
 ```
 
 Archive tweets from `date_start` until today:
 ```
-python3 app.py POTUS 2022-01-01
+python app.py POTUS 2022-01-01
 ```
 
 Archive tweets from `date_start` until `date_end`:
 ```bash
-python3 app.py POTUS 2022-01-01 2022-01-03
+python app.py POTUS 2022-01-01 2022-01-03
 ```
 
 ## Docker
