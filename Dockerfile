@@ -1,6 +1,7 @@
 FROM python:3-slim
 
 ENV DISPLAY=:99
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update -qq
 RUN apt-get install -yqq curl xvfb firefox-esr
