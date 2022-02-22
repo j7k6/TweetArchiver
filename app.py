@@ -86,10 +86,10 @@ def archive_tweet(username, tweet_id):
 
 
 def browser_handler(url):
-    retry_delay = 30
     connection_error = True
     twitter_error = True
 
+    retry_delay = 30
     error_messages = ["Sorry, you are rate limited. Please wait a few moments then try again.",
                       "Something went wrong. Try reloading."]
 
@@ -194,11 +194,11 @@ def scrape_tweets(username, date_start, date_end):
 if __name__ == "__main__":
     try:
         username = sys.argv[1].lower()
-         
-        print(f"Username: @{username}")
     except IndexError:
         print("No Username given! Exiting...")
         quit()
+         
+    print(f"Username: @{username}")
 
     try:
         date_start = sys.argv[2]
