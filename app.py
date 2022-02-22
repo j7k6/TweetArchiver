@@ -87,41 +87,37 @@ def archive_tweet(username, tweet_id):
 
 def browser_handler(url):
     retry_delay = 30
-    rate_limited = True
-    twitter_error = True
     connection_error = True
+    twitter_error = True
 
-    while rate_limited or twitter_error or connection_error:
+    error_messages = ["Sorry, you are rate limited. Please wait a few moments then try again.",
+                      "Something went wrong. Try reloading."]
+
+    while connection_error:
         browser = init_browser()
 
         try:
             browser.get(url)
             connection_error = False
+            time.sleep(1)
         except:
-            print("Connection Error! retrying in {retry_delay} seconds...")
+            print(f"Connection Error! retrying in {retry_delay} seconds...")
+
             browser.quit()
             connection_error = True
             time.sleep(retry_delay)
 
-        time.sleep(1)
+        for msg in error_messages:
+            try:
+                browser.find_element(By.XPATH, f"//span[text()='{msg}']")
+                browser.quit()
 
-        try:
-            browser.find_element(By.XPATH, "//span[text()='Sorry, you are rate limited. Please wait a few moments then try again.']")
-            print(f"Rate Limited! retrying in {retry_delay} seconds...")
-            browser.quit()
-            rate_limited = True
-            time.sleep(retry_delay)
-        except NoSuchElementException:
-            rate_limited = False
+                print(f"Twitter Error: '{msg}'! retrying in {retry_delay} seconds...")
 
-        try:
-            browser.find_element(By.XPATH, "//span[text()='Something went wrong. Try reloading.']")
-            print(f"Twitter Error! retrying in {retry_delay} seconds...")
-            browser.quit()
-            twitter_error = True
-            time.sleep(retry_delay)
-        except NoSuchElementException:
-            twitter_error = False
+                twitter_error = True
+                time.sleep(retry_delay)
+            except NoSuchElementException:
+                twitter_error = False
 
     return browser
 
