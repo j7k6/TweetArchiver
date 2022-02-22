@@ -95,7 +95,7 @@ def browser_handler(url):
 
     browser = init_browser()
 
-    while connection_error:
+    while connection_error or twitter_error:
         try:
             browser.get(url)
             connection_error = False
