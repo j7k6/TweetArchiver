@@ -93,27 +93,35 @@ def browser_handler(url):
     error_messages = ["Sorry, you are rate limited. Please wait a few moments then try again.",
                       "Something went wrong. Try reloading."]
 
-    browser = init_browser()
 
     while connection_error or twitter_error:
         try:
+            browser = init_browser()
             browser.get(url)
-            connection_error = False
+
             time.sleep(1)
-        except:
+
+            connection_error = False
+        except Exception as e:
             print(f"Connection Error! retrying in {retry_delay} seconds...")
+
+            browser.quit()
 
             connection_error = True
             time.sleep(retry_delay)
+            continue
 
         for msg in error_messages:
             try:
                 browser.find_element(By.XPATH, f"//span[text()='{msg}']")
+                browser.quit()
 
                 print(f"Twitter Error ['{msg}']! retrying in {retry_delay} seconds...")
-
+                
                 twitter_error = True
+
                 time.sleep(retry_delay)
+                break
             except NoSuchElementException:
                 twitter_error = False
 
@@ -126,12 +134,14 @@ def get_joined_date(username):
     try:
         joined = browser.find_element(By.XPATH, "//span[contains(text(), 'Joined')]").text.split(" ")
         date_joined = f"{joined[2]}-{time.strptime(joined[1], '%B').tm_mon:02}-01"
+
         browser.quit()
 
         return date_joined
     except NoSuchElementException as e:
-        browser.quit()
         print("Error!")
+
+        browser.quit()
         quit()
 
 
@@ -151,7 +161,7 @@ def scrape_tweets(username, date_start, date_end):
 
         try:
             browser.find_element(By.XPATH, f"//span[text()='No results for \"{search_query}\"']")
-        except NoSuchElementException:
+        except NoSuchElementException as e:
             t = -1
 
             while t < len(tweets):
@@ -168,7 +178,7 @@ def scrape_tweets(username, date_start, date_end):
             try:
                 tweet_id = tweet.find_element(By.CSS_SELECTOR, "time").find_element(By.XPATH, "..").get_attribute("href").split("/")[-1]
                 tweet_ids.append(tweet_id)
-            except NoSuchElementException:
+            except NoSuchElementException as e:
                 pass
 
         browser.quit()
