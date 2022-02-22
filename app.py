@@ -184,14 +184,14 @@ def scrape_tweets(username, date_start, date_end):
             for tweet_id in reversed(tweet_ids):
                 archive_tweet(username, tweet_id)
                 tweets_total += 1
+
+        date_start = (datetime.datetime.strptime(date_start, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
         
         try:
             with open(os.path.join(data_path, f"{username}.lock"), "w") as f:
                 f.write(f"{date_start}")
         except:
             pass
-
-        date_start = (datetime.datetime.strptime(date_start, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
 
     print(f"\nFinished! {tweets_total} tweets archived.")
 
