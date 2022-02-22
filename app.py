@@ -26,7 +26,7 @@ def init_browser():
     return Firefox(options=options)
 
 
-def screenshot_tweet(username, tweet_id):
+def archive_tweet(username, tweet_id):
     try:
         with open(os.path.join(data_path, f"{username}.csv")) as f:
             for row in csv.reader(f, delimiter="|"):
@@ -35,30 +35,10 @@ def screenshot_tweet(username, tweet_id):
     except FileNotFoundError:
         pass
 
+    tweet_url = f"https://twitter.com/{username}/status/{tweet_id}"
     screenshot_file = os.path.join(data_path, "screenshots", f"{tweet_id}.png")
 
-    rate_limited = True
-    timeout = False
-
-    while rate_limited or timeout:
-        timeout = False
-        tweet_url = f"https://twitter.com/{username}/status/{tweet_id}"
-
-        try:
-            browser = init_browser()
-            browser.get(tweet_url)
-            time.sleep(3)
-
-            try:
-                browser.find_element(By.XPATH, "//span[text()='Sorry, you are rate limited. Please wait a few moments then try again.']")
-                print("Error: rate limited! Retrying...")
-                time.sleep(30)
-            except NoSuchElementException:
-                rate_limited = False
-        except:
-            print("Timeout! retrying...")
-            timeout = True
-            time.sleep(1)
+    browser = browser_handler(tweet_url)
             
     tweet_type = "T"
 
@@ -105,11 +85,51 @@ def screenshot_tweet(username, tweet_id):
     browser.quit()
 
 
-def get_joined_date(username):
-    try:
+def browser_handler(url):
+    retry_delay = 30
+    rate_limited = True
+    twitter_error = True
+    connection_error = True
+
+    while rate_limited or twitter_error or connection_error:
         browser = init_browser()
-        browser.get(f"https://twitter.com/{username}")
-        time.sleep(2)
+
+        try:
+            browser.get(url)
+            connection_error = False
+        except:
+            print("Connection Error! retrying in {retry_delay} seconds...")
+            browser.quit()
+            connection_error = True
+            time.sleep(retry_delay)
+
+        time.sleep(1)
+
+        try:
+            browser.find_element(By.XPATH, "//span[text()='Sorry, you are rate limited. Please wait a few moments then try again.']")
+            print(f"Rate Limited! retrying in {retry_delay} seconds...")
+            browser.quit()
+            rate_limited = True
+            time.sleep(retry_delay)
+        except NoSuchElementException:
+            rate_limited = False
+
+        try:
+            browser.find_element(By.XPATH, "//span[text()='Something went wrong. Try reloading.']")
+            print(f"Twitter Error! retrying in {retry_delay} seconds...")
+            browser.quit()
+            twitter_error = True
+            time.sleep(retry_delay)
+        except NoSuchElementException:
+            twitter_error = False
+
+    return browser
+
+
+def get_joined_date(username):
+    browser = browser_handler(f"https://twitter.com/{username}")
+
+    try:
         joined = browser.find_element(By.XPATH, "//span[contains(text(), 'Joined')]").text.split(" ")
         date_joined = f"{joined[2]}-{time.strptime(joined[1], '%B').tm_mon:02}-01"
         browser.quit()
@@ -123,50 +143,15 @@ def get_joined_date(username):
 
 def scrape_tweets(username, date_start, date_end):
     tweets_total = 0
-    retry_delay = 30
 
     while datetime.datetime.strptime(date_start, "%Y-%m-%d") <= datetime.datetime.strptime(date_end, "%Y-%m-%d"):
         date_until = (datetime.datetime.strptime(date_start, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
         date_current = date_start
 
         search_query = f"from:{username} exclude:retweets since:{date_start} until:{date_until}"
+        search_url = f"https://twitter.com/search?q={urllib.parse.quote(search_query)}&src=typed_query&f=live"
 
-        rate_limited = True
-        twitter_error = True
-        connection_error = True
-
-        while rate_limited or twitter_error or connection_error:
-            browser = init_browser()
-
-            try:
-                browser.get(f"https://twitter.com/search?q={urllib.parse.quote(search_query)}&src=typed_query&f=live")
-                connection_error = False
-            except WebDriverException as e:
-                print("Driver Error! retrying...")
-                browser.quit()
-                connection_error = True
-                time.sleep(retry_delay)
-
-            time.sleep(1)
-
-            try:
-                browser.find_element(By.XPATH, "//span[text()='Sorry, you are rate limited. Please wait a few moments then try again.']")
-                print(f"Rate Limited! retrying in {retry_delay} seconds...")
-                browser.quit()
-                rate_limited = True
-                time.sleep(retry_delay)
-            except NoSuchElementException:
-                rate_limited = False
-                date_start = (datetime.datetime.strptime(date_start, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-
-            try:
-                browser.find_element(By.XPATH, "//span[text()='Something went wrong. Try reloading.']")
-                print(f"Twitter Error! retrying in {retry_delay} seconds...")
-                browser.quit()
-                twitter_error = True
-                time.sleep(retry_delay)
-            except NoSuchElementException:
-                twitter_error = False
+        browser = browser_handler(search_url)
 
         tweets = []
 
@@ -197,7 +182,7 @@ def scrape_tweets(username, date_start, date_end):
 
         if len(tweet_ids) > 0:
             for tweet_id in reversed(tweet_ids):
-                screenshot_tweet(username, tweet_id)
+                archive_tweet(username, tweet_id)
                 tweets_total += 1
         
         try:
@@ -205,6 +190,8 @@ def scrape_tweets(username, date_start, date_end):
                 f.write(f"{date_start}")
         except:
             pass
+
+        date_start = (datetime.datetime.strptime(date_start, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
 
     print(f"\nFinished! {tweets_total} tweets archived.")
 
