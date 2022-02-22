@@ -180,13 +180,13 @@ def scrape_tweets(username, date_start, date_end):
                 archive_tweet(username, tweet_id)
                 tweets_total += 1
 
-        date_start = (datetime.datetime.strptime(date_start, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-        
         try:
             with open(os.path.join(data_path, f"{username}.lock"), "w") as f:
                 f.write(f"{date_start}")
         except:
             pass
+
+        date_start = (datetime.datetime.strptime(date_start, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
 
     print(f"\nFinished! {tweets_total} tweets archived.")
 
@@ -226,6 +226,13 @@ if __name__ == "__main__":
                 print(f"Lockfile found!")
             except FileNotFoundError:
                 date_start = get_joined_date(username)
+
+        try:
+            datetime.datetime.strptime(date_start, "%Y-%m-%d")
+            datetime.datetime.strptime(date_end, "%Y-%m-%d")
+        except ValueError:
+            print("Invalid Date Format! Exiting...")
+            quit()
 
         print(f"Start: {date_start}")
         print(f"End: {date_end}")
