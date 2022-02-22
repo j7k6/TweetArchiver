@@ -63,10 +63,10 @@ def archive_tweet(username, tweet_id):
             tweet_text = ""
 
     if len(tweet_id) > 10:
-        tweet_date = datetime.datetime.fromtimestamp(int(((int(tweet_id) >> 22) + 1288834974657) / 1000))
+        tweet_date = datetime.datetime.fromtimestamp(int(((int(tweet_id) >> 22) + 1288834974657) / 1000)).isoformat()
     else:
         try:
-            tweet_date = datetime.datetime.strptime(tweet_date_element.find_element(By.CSS_SELECTOR, "span").text, "%I:%M %p · %b %d, %Y").strftime("%Y-%m-%d %H:%M:%S")
+            tweet_date = datetime.datetime.strptime(tweet_date_element.find_element(By.CSS_SELECTOR, "span").text, "%I:%M %p · %b %d, %Y").isoformat()
         except NoSuchElementException as e:
             browser.quit()
             return
@@ -93,9 +93,9 @@ def browser_handler(url):
     error_messages = ["Sorry, you are rate limited. Please wait a few moments then try again.",
                       "Something went wrong. Try reloading."]
 
-    while connection_error:
-        browser = init_browser()
+    browser = init_browser()
 
+    while connection_error:
         try:
             browser.get(url)
             connection_error = False
@@ -103,16 +103,14 @@ def browser_handler(url):
         except:
             print(f"Connection Error! retrying in {retry_delay} seconds...")
 
-            browser.quit()
             connection_error = True
             time.sleep(retry_delay)
 
         for msg in error_messages:
             try:
                 browser.find_element(By.XPATH, f"//span[text()='{msg}']")
-                browser.quit()
 
-                print(f"Twitter Error: '{msg}'! retrying in {retry_delay} seconds...")
+                print(f"Twitter Error ['{msg}']! retrying in {retry_delay} seconds...")
 
                 twitter_error = True
                 time.sleep(retry_delay)
@@ -168,7 +166,8 @@ def scrape_tweets(username, date_start, date_end):
 
         for tweet in tweets:
             try:
-                tweet_ids.append(tweet.find_element(By.CSS_SELECTOR, "time").find_element(By.XPATH, "..").get_attribute("href").split("/")[-1])
+                tweet_id = tweet.find_element(By.CSS_SELECTOR, "time").find_element(By.XPATH, "..").get_attribute("href").split("/")[-1]
+                tweet_ids.append(tweet_id)
             except NoSuchElementException:
                 pass
 
@@ -195,6 +194,8 @@ def scrape_tweets(username, date_start, date_end):
 if __name__ == "__main__":
     try:
         username = sys.argv[1].lower()
+         
+        print(f"Username: @{username}")
     except IndexError:
         print("No Username given! Exiting...")
         quit()
@@ -226,7 +227,6 @@ if __name__ == "__main__":
             except FileNotFoundError:
                 date_start = get_joined_date(username)
 
-        print(f"Username: @{username}")
         print(f"Start: {date_start}")
         print(f"End: {date_end}")
 
