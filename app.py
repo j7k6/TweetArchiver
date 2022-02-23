@@ -2,6 +2,7 @@
 
 from PIL import Image
 from io import BytesIO
+from random import randrange
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
 from selenium.webdriver import Firefox
 from selenium.webdriver.common.by import By
@@ -11,9 +12,22 @@ import csv
 import datetime
 import os
 import re
+import socket
 import sys
 import time
 import urllib
+import shutil
+import stem
+import stem.connection
+import stem.process
+from stem.control import Controller
+from stem import Signal
+
+
+use_tor = bool(os.getenv("USE_TOR", 0))
+tor_cmd = os.getenv("TOR_CMD", "/opt/homebrew/bin/tor")
+tor_socks_port = randrange(10000, 20000)
+tor_control_port = randrange(20000, 30000)
 
 
 def init_browser():
@@ -23,10 +37,29 @@ def init_browser():
     options.add_argument("--height=3000")
     options.set_preference("intl.accept_languages", "en-us"); 
 
+    if use_tor:
+        options.set_preference("network.proxy.type", 1)
+        options.set_preference("network.proxy.socks", "127.0.0.1")
+        options.set_preference("network.proxy.socks_port", tor_socks_port)
+        options.set_preference("network.proxy.socks_remote_dns", False)
+
     return Firefox(options=options)
 
 
+def new_tor_circuit():
+    try:
+        with Controller.from_port() as controller:
+            controller.authenticate()
+            controller.signal(Signal.NEWNYM)
+
+        print("New Tor Circuit established.")
+    except Exception as e:
+        print("Tor is not running!")
+
+
 def archive_tweet(username, tweet_id):
+    start_time = time.time()
+
     try:
         with open(os.path.join(data_path, f"{username}.csv")) as f:
             for row in csv.reader(f, delimiter="|"):
@@ -50,7 +83,7 @@ def archive_tweet(username, tweet_id):
 
             break
         except NoSuchElementException as e:
-            print(f"Error: Tweet '{tweet_id}' not found! Retrying... ({i+1}/{max_retries})")
+            print(f"Page Load failed! Retrying... ({i+1}/{max_retries})")
 
             browser.quit()
 
@@ -72,7 +105,7 @@ def archive_tweet(username, tweet_id):
         except NoSuchElementException as e:
             tweet_text = ""
 
-    if len(tweet_id) > 10:
+    if use_tor and len(tweet_id) > 10:
         tweet_date = datetime.datetime.fromtimestamp(int(((int(tweet_id) >> 22) + 1288834974657) / 1000)).isoformat()
     else:
         try:
@@ -88,7 +121,14 @@ def archive_tweet(username, tweet_id):
         screenshot = tweet_element.screenshot_as_png
         Image.open(BytesIO(screenshot)).save(screenshot_file)
 
-        print(tweet_url)
+        total_time = time.time() - start_time
+
+        print(f"{tweet_url} ({total_time:.2f}s)")
+
+        if total_time > 15:
+            print("Page Load too slow! Establishing new Tor Circuit...")
+
+            new_tor_circuit()
     except Exception as e:
         pass
 
@@ -99,20 +139,27 @@ def browser_handler(url):
     connection_error = True
     twitter_error = True
 
-    retry_delay = 30
+    wait_delay = 1
+    retry_delay = 10
     error_messages = ["Sorry, you are rate limited. Please wait a few moments then try again.",
                       "Something went wrong. Try reloading."]
+
+    if use_tor:
+        wait_delay = 5
 
     while connection_error or twitter_error:
         try:
             browser = init_browser()
             browser.get(url)
 
-            time.sleep(1)
+            time.sleep(wait_delay)
 
             connection_error = False
         except Exception as e:
             print(f"Connection Error! retrying in {retry_delay} seconds...")
+            
+            if use_tor:
+                new_tor_circuit()
 
             browser.quit()
 
@@ -126,6 +173,9 @@ def browser_handler(url):
                 browser.quit()
 
                 print(f"Twitter Error ['{msg}']! retrying in {retry_delay} seconds...")
+
+                if use_tor:
+                    new_tor_circuit()
                 
                 twitter_error = True
 
@@ -192,6 +242,12 @@ def scrape_tweets(username, date_start, date_end):
 
         browser.quit()
 
+        try:
+            with open(os.path.join(data_path, f"{username}.lock"), "w") as f:
+                f.write(f"{date_start}")
+        except:
+            pass
+
         print(f"\n{date_current} ({len(tweet_ids)})")
 
         if len(tweet_ids) > 0:
@@ -199,18 +255,29 @@ def scrape_tweets(username, date_start, date_end):
                 archive_tweet(username, tweet_id)
                 tweets_total += 1
 
-        try:
-            with open(os.path.join(data_path, f"{username}.lock"), "w") as f:
-                f.write(f"{date_start}")
-        except:
-            pass
-
         date_start = (datetime.datetime.strptime(date_start, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
 
     print(f"\nFinished! {tweets_total} tweets archived.")
 
 
 if __name__ == "__main__":
+    if use_tor:
+        tor_data_directory = f"/tmp/tordata{tor_socks_port}"
+        tor_config = {
+                "SocksPort": str(tor_socks_port),
+                "ControlPort": str(tor_control_port),
+                "CookieAuthentication": "0",
+        #        "ExitNodes": "{de}",
+                "DataDirectory": tor_data_directory
+            }
+
+        try:
+            tor_process = stem.process.launch_tor_with_config(config=tor_config, tor_cmd=tor_cmd, take_ownership=True)
+            print(f"Tor running on SocksPort {tor_socks_port}...")
+        except Exception as e:
+            print(e)
+            quit()
+
     try:
         username = sys.argv[1].lower()
     except IndexError:
@@ -260,7 +327,14 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         try:
             browser.quit()
-        except Exception:
+        except:
             pass
+
+        if use_tor:
+            try:
+                tor_process.kill()
+                shutil.rmtree(tor_data_directory, ignore_errors=True)
+            except:
+                pass
 
         print("Exiting...")
