@@ -39,19 +39,22 @@ def archive_tweet(username, tweet_id):
     screenshot_file = os.path.join(data_path, "screenshots", f"{tweet_id}.png")
 
     max_retries = 5
-    browser = browser_handler(tweet_url)
 
     for i in range(max_retries):
         try:
+            browser = browser_handler(tweet_url)
             time.sleep(i)
+
             tweet_date_element = browser.find_element(By.XPATH, f"//a[translate(@href, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='/{username}/status/{tweet_id}']")
             tweet_element = tweet_date_element.find_element(By.XPATH, f"../../../../../../../../../..")
+
             break
         except NoSuchElementException as e:
-            print(f"Tweet '{tweet_id}' not found! Retrying... ({i+1}/{max_retries})")
+            print(f"Error: Tweet '{tweet_id}' not found! Retrying... ({i+1}/{max_retries})")
+
+            browser.quit()
 
             if i == max_retries-1:
-                browser.quit()
                 return
 
     tweet_type = "T"
