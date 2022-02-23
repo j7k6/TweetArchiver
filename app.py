@@ -49,9 +49,9 @@ def archive_tweet(username, tweet_id):
             break
         except NoSuchElementException as e:
             print(f"Tweet '{tweet_id}' not found! Retrying... ({i+1}/{max_retries})")
-            browser.quit()
 
             if i == max_retries-1:
+                browser.quit()
                 return
 
     tweet_type = "T"
