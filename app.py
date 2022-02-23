@@ -38,16 +38,23 @@ def archive_tweet(username, tweet_id):
     tweet_url = f"https://twitter.com/{username}/status/{tweet_id}"
     screenshot_file = os.path.join(data_path, "screenshots", f"{tweet_id}.png")
 
-    browser = browser_handler(tweet_url)
-            
-    tweet_type = "T"
+    max_retries = 5
 
-    try:
-        tweet_date_element = browser.find_element(By.XPATH, f"//a[translate(@href, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='/{username}/status/{tweet_id}']")
-        tweet_element = tweet_date_element.find_element(By.XPATH, f"../../../../../../../../../..")
-    except NoSuchElementException as e:
-        browser.quit()
-        return
+    for i in range(max_retries):
+        try:
+            browser = browser_handler(tweet_url)
+            tweet_date_element = browser.find_element(By.XPATH, f"//a[translate(@href, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='/{username}/status/{tweet_id}']")
+            tweet_element = tweet_date_element.find_element(By.XPATH, f"../../../../../../../../../..")
+            break
+        except NoSuchElementException as e:
+            print(f"Element not found! Retrying... ({i+1}/{max_retries})")
+            browser.quit()
+
+            if i == max_retries-1:
+                print(f"Giving up... ({tweet_id})")
+                return
+
+    tweet_type = "T"
 
     try:
         tweet_text = tweet_element.find_element(By.CSS_SELECTOR, "article div > div > div:nth-child(3) div[id^='id_']").text.replace("\n", " ").replace("  ", " ")
@@ -92,7 +99,6 @@ def browser_handler(url):
     retry_delay = 30
     error_messages = ["Sorry, you are rate limited. Please wait a few moments then try again.",
                       "Something went wrong. Try reloading."]
-
 
     while connection_error or twitter_error:
         try:
