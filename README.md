@@ -26,5 +26,5 @@ python app.py POTUS 2022-01-01 2022-01-03
 ## Docker
 ```bash
 docker build -t tweetarchiver .
-docker run -t -v $PWD/data:/app/data tweetarchiver POTUS
+docker run -t -v $PWD/data:/app/data -e USE_TOR=1 tweetarchiver POTUS
 ```
