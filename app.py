@@ -12,22 +12,28 @@ import csv
 import datetime
 import os
 import re
+import requests
 import socket
 import sys
 import time
 import urllib
+import socket
 import shutil
+import subprocess
 import stem
 import stem.connection
 import stem.process
-from stem.control import Controller
-from stem import Signal
+# from stem.control import Controller
+# from stem import Signal
 
 
 use_tor = bool(os.getenv("USE_TOR", 0))
 tor_cmd = os.getenv("TOR_CMD", "/opt/homebrew/bin/tor")
 tor_socks_port = randrange(10000, 20000)
 tor_control_port = randrange(20000, 30000)
+tor_control_password = "".join(chr(randrange(97, 122)) for i in range(8))
+tor_control_password_hashed = subprocess.Popen([tor_cmd, "--hash-password", tor_control_password], stdout=subprocess.PIPE).stdout.read().decode().replace("\n", "")
+tor_data_directory = f"/tmp/tordata{tor_socks_port}"
 
 
 def init_browser():
@@ -46,11 +52,34 @@ def init_browser():
     return Firefox(options=options)
 
 
+def connect_tor():
+    print("Starting Tor...")
+
+    tor_config = {
+            "SocksPort": str(tor_socks_port),
+            "ControlPort": str(tor_control_port),
+            "HashedControlPassword": tor_control_password_hashed,
+            "DataDirectory": tor_data_directory
+        }
+
+    try:
+        tor_process = stem.process.launch_tor_with_config(config=tor_config, tor_cmd=tor_cmd, take_ownership=True)
+        
+        print(f"Tor running on SocksPort {tor_socks_port}...")
+        new_tor_circuit()
+
+        return tor_process
+    except Exception as e:
+        print(e)
+        quit()
+
+
 def new_tor_circuit():
     try:
-        with Controller.from_port() as controller:
-            controller.authenticate()
-            controller.signal(Signal.NEWNYM)
+        # stem controller didn't work :/
+        s = socket.socket()
+        s.connect(("127.0.0.1", tor_control_port))
+        s.send(f"AUTHENTICATE \"{tor_control_password}\"\r\nSIGNAL NEWNYM\r\n".encode())
 
         print("New Tor Circuit established.")
     except Exception as e:
@@ -262,21 +291,7 @@ def scrape_tweets(username, date_start, date_end):
 
 if __name__ == "__main__":
     if use_tor:
-        tor_data_directory = f"/tmp/tordata{tor_socks_port}"
-        tor_config = {
-                "SocksPort": str(tor_socks_port),
-                "ControlPort": str(tor_control_port),
-                "CookieAuthentication": "0",
-        #        "ExitNodes": "{de}",
-                "DataDirectory": tor_data_directory
-            }
-
-        try:
-            tor_process = stem.process.launch_tor_with_config(config=tor_config, tor_cmd=tor_cmd, take_ownership=True)
-            print(f"Tor running on SocksPort {tor_socks_port}...")
-        except Exception as e:
-            print(e)
-            quit()
+        tor_process = connect_tor()
 
     try:
         username = sys.argv[1].lower()
@@ -332,7 +347,7 @@ if __name__ == "__main__":
 
         if use_tor:
             try:
-                tor_process.kill()
+                tor_process.terminate()
                 shutil.rmtree(tor_data_directory, ignore_errors=True)
             except:
                 pass
