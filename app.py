@@ -288,20 +288,27 @@ class Twitter:
         try:
             with open(os.path.join(data_path, f"{self.username}.csv"), "a+") as f:
                 csv.writer(f, delimiter="|").writerow([tweet_id, tweet_date, tweet_text])
+        except Exception as e:
+            print("Failed to write to CSV file!")
 
+            return
+
+        try:
             with open(os.path.join(data_path, "screenshots", f"{tweet_id}.png"), "wb") as screenshot_file:
                 screenshot_file.write(tweet_element.screenshot_as_png)
-
-            total_time = time.time() - start_time
-
-            print(f"{tweet_url} ({total_time:.2f}s)")
-
-            if self.tor is not None and total_time > 15:
-                print("Page Load too slow! Establishing new Tor Circuit...")
-
-                self.tor.renew_circuit()
         except Exception as e:
-            pass
+            print("Failed to save screenshot file")
+
+            return
+
+        total_time = time.time() - start_time
+
+        print(f"{tweet_url} ({total_time:.2f}s)")
+
+        if self.tor is not None and total_time > 15:
+            print("Page Load too slow! Establishing new Tor Circuit...")
+
+            self.tor.renew_circuit()
 
         browser.quit()
 
