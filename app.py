@@ -13,17 +13,17 @@ import datetime
 import os
 import re
 import requests
-import socket
-import sys
-import time
-import urllib
-import socket
 import shutil
-import subprocess
+import socket
+import socket
 import stem
 import stem.connection
 import stem.process
+import subprocess
+import sys
 import tempfile
+import time
+import urllib
 
 
 class Tor:
@@ -93,7 +93,6 @@ class Browser:
         options.set_preference("browser.cache.memory.enable", False);
         options.set_preference("browser.cache.offline.enable", False);
         options.set_preference("network.http.use-cache", False);
-
 
         if headless:
             options.add_argument("--headless")
@@ -251,7 +250,6 @@ class Twitter:
             pass
 
         tweet_url = f"https://twitter.com/{self.username}/status/{tweet_id}"
-        screenshot_file = os.path.join(data_path, "screenshots", f"{tweet_id}.png")
 
         for i in range(max_retries):
             try:
@@ -272,20 +270,13 @@ class Twitter:
                 if i == max_retries-1:
                     return
 
-        tweet_type = "T"
-
         try:
             tweet_text = tweet_element.find_element(By.CSS_SELECTOR, "article div > div > div:nth-child(3) div[id^='id_']").text.replace("\n", " ").replace("  ", " ")
+
+            if tweet_text.startswith("Replying to @"):
+                tweet_text = tweet_element.find_element(By.CSS_SELECTOR, "article div > div > div:nth-child(3) > div:nth-child(2) div[id^='id_']").text.replace("\n", " ").replace("  ", " ")
         except NoSuchElementException as e:
             tweet_text = ""
-
-        if tweet_text.startswith("Replying to @"):
-            tweet_type = "C"
-
-            try:
-                tweet_text = tweet_element.find_element(By.CSS_SELECTOR, "article div > div > div:nth-child(3) > div:nth-child(2) div[id^='id_']").text.replace("\n", " ").replace("  ", " ")
-            except NoSuchElementException as e:
-                tweet_text = ""
 
         if len(tweet_id) > 10:
             tweet_date = datetime.datetime.fromtimestamp(int(((int(tweet_id) >> 22) + 1288834974657) / 1000)).isoformat()
@@ -298,10 +289,10 @@ class Twitter:
 
         try:
             with open(os.path.join(data_path, f"{self.username}.csv"), "a+") as f:
-                csv.writer(f, delimiter="|").writerow([tweet_id, tweet_date, tweet_type, tweet_text])
+                csv.writer(f, delimiter="|").writerow([tweet_id, tweet_date, tweet_text])
 
             screenshot = tweet_element.screenshot_as_png
-            Image.open(BytesIO(screenshot)).save(screenshot_file)
+            Image.open(BytesIO(screenshot)).save(os.path.join(data_path, "screenshots", f"{tweet_id}.png"))
 
             total_time = time.time() - start_time
 
