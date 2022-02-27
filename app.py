@@ -89,6 +89,11 @@ class Browser:
         options.add_argument(f"--width={width}")
         options.add_argument(f"--height={height}")
         options.set_preference("intl.accept_languages", locale); 
+        options.set_preference("browser.cache.disk.enable", False);
+        options.set_preference("browser.cache.memory.enable", False);
+        options.set_preference("browser.cache.offline.enable", False);
+        options.set_preference("network.http.use-cache", False);
+
 
         if headless:
             options.add_argument("--headless")
