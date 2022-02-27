@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 
-from PIL import Image
-from io import BytesIO
-from random import randrange
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
 from selenium.webdriver import Firefox
 from selenium.webdriver.common.by import By
@@ -11,6 +8,7 @@ from selenium.webdriver.firefox.service import Service
 import csv
 import datetime
 import os
+import random
 import re
 import requests
 import shutil
@@ -31,9 +29,9 @@ class Tor:
         self.cmd = cmd
         self.proc = None
         self.listen_address = "127.0.0.1"
-        self.socks_port = randrange(10000, 20000)
-        self.control_port = randrange(20000, 30000)
-        self.control_password = "".join(chr(randrange(97, 122)) for i in range(8))
+        self.socks_port = random.randrange(10000, 20000)
+        self.control_port = random.randrange(20000, 30000)
+        self.control_password = "".join(chr(random.randrange(97, 122)) for i in range(8))
         self.data_directory = tempfile.mkdtemp(prefix="tordata")
 
 
@@ -291,8 +289,8 @@ class Twitter:
             with open(os.path.join(data_path, f"{self.username}.csv"), "a+") as f:
                 csv.writer(f, delimiter="|").writerow([tweet_id, tweet_date, tweet_text])
 
-            screenshot = tweet_element.screenshot_as_png
-            Image.open(BytesIO(screenshot)).save(os.path.join(data_path, "screenshots", f"{tweet_id}.png"))
+            with open(os.path.join(data_path, "screenshots", f"{tweet_id}.png"), "wb") as screenshot_file:
+                screenshot_file.write(tweet_element.screenshot_as_png)
 
             total_time = time.time() - start_time
 
