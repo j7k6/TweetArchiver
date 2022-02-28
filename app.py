@@ -12,11 +12,8 @@ import random
 import re
 import requests
 import shutil
+import signal
 import socket
-import socket
-import stem
-import stem.connection
-import stem.process
 import subprocess
 import sys
 import tempfile
@@ -30,27 +27,33 @@ class Tor:
         self.proc = None
         self.listen_address = "127.0.0.1"
         self.socks_port = random.randrange(10000, 20000)
-        self.control_port = random.randrange(20000, 30000)
-        self.control_password = "".join(chr(random.randrange(97, 122)) for i in range(8))
         self.data_directory = tempfile.mkdtemp(prefix="tordata")
+        self.torrc = list(tempfile.mkstemp(prefix="torrc"))[1]
 
 
-    def hash_control_password(self, password):
-        return subprocess.Popen([self.cmd, "--hash-password", password], stdout=subprocess.PIPE).stdout.read().decode().replace("\n", "")
-        
-
-    def connect(self):
+    def connect(self, timeout=60):
         print("Starting Tor...")
 
         try:
-            self.config = {
-                "SocksPort": str(self.socks_port),
-                "ControlPort": str(self.control_port),
-                "HashedControlPassword": self.hash_control_password(self.control_password),
+            config = {
+                "SocksPort": self.socks_port,
                 "DataDirectory": self.data_directory
             }
 
-            self.proc = stem.process.launch_tor_with_config(config=self.config, tor_cmd=self.cmd, take_ownership=True)
+            with open(self.torrc, "w") as f:
+                for key, value in config.items():
+                    f.write(f"{key} {value}\n")
+
+            self.proc = subprocess.Popen([self.cmd, "-f", self.torrc], stdout=subprocess.PIPE)
+
+            for i in range(timeout):
+                time.sleep(1)
+
+                if "Bootstrapped 100% (done): Done" in self.proc.stdout.readline().decode():
+                    break
+
+                if i == timeout-1:
+                    raise Exception("Tor Error! Timeout...")
             
             print(f"Tor running on SocksPort {self.socks_port}...")
         except Exception as e:
@@ -64,15 +67,14 @@ class Tor:
         try:
             self.proc.teminate()
             shutil.rmtree(tor_data_directory, ignore_errors=True)
+            os.remove(self.torrc)
         except:
             pass
 
 
     def renew_circuit(self):
         try:
-            s = socket.socket()
-            s.connect((self.listen_address, self.control_port))
-            s.send(f"AUTHENTICATE \"{self.control_password}\"\r\nSIGNAL NEWNYM\r\n".encode())
+            os.kill(self.proc.pid, signal.SIGHUP)
 
             print("New Tor Circuit established.")
         except Exception as e:
