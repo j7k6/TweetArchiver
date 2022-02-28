@@ -52,7 +52,7 @@ class Tor:
         self.generate_torrc()
 
         try:
-            self.proc = subprocess.Popen([self.cmd, "-f", self.torrc], stdout=subprocess.PIPE)
+            self.proc = subprocess.Popen([self.cmd, "-f", self.torrc], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
             for i in range(timeout):
                 time.sleep(1)
@@ -185,8 +185,6 @@ class Twitter:
         try:
             joined = browser.driver.find_element(By.XPATH, "//span[contains(text(), 'Joined')]").text.split(" ")
             date_joined = f"{joined[2]}-{time.strptime(joined[1], '%B').tm_mon:02}-01"
-
-            browser.quit()
 
             return date_joined
         except NoSuchElementException as e:
