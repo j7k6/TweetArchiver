@@ -179,8 +179,7 @@ class Twitter:
         self.tor = tor
 
 
-    def get_joined_date(self):
-        browser = Browser(tor=self.tor)
+    def get_joined_date(self, browser):
         browser.request(f"https://twitter.com/{self.username}")
 
         try:
@@ -197,7 +196,7 @@ class Twitter:
             quit()
 
 
-    def scrape_tweets(self, date_start, date_end):
+    def scrape_tweets(self, browser, date_start, date_end):
         tweets_total = 0
 
         while datetime.datetime.strptime(date_start, "%Y-%m-%d") <= datetime.datetime.strptime(date_end, "%Y-%m-%d"):
@@ -207,7 +206,6 @@ class Twitter:
             search_query = f"from:{username} exclude:retweets since:{date_start} until:{date_until}"
             search_url = f"https://twitter.com/search?q={urllib.parse.quote(search_query)}&src=typed_query&f=live"
 
-            browser = Browser(tor=self.tor)
             browser.request(search_url)
 
             tweets = []
@@ -234,8 +232,6 @@ class Twitter:
                 except NoSuchElementException as e:
                     pass
 
-            browser.driver.quit()
-
             try:
                 with open(os.path.join(data_path, f"{self.username}.lock"), "w") as f:
                     f.write(f"{date_start}")
@@ -246,7 +242,7 @@ class Twitter:
 
             if len(tweet_ids) > 0:
                 for tweet_id in reversed(tweet_ids):
-                    self.archive_tweet(tweet_id)
+                    self.archive_tweet(browser, tweet_id)
                     tweets_total += 1
 
             date_start = (datetime.datetime.strptime(date_start, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
@@ -254,7 +250,7 @@ class Twitter:
         print(f"\nFinished! {tweets_total} tweets archived.")
 
 
-    def archive_tweet(self, tweet_id, max_retries = 5):
+    def archive_tweet(self, browser, tweet_id, max_retries = 5):
         start_time = time.time()
 
         try:
@@ -269,7 +265,6 @@ class Twitter:
 
         for i in range(max_retries):
             try:
-                browser = Browser(tor=self.tor)
                 browser.request(tweet_url)
 
                 time.sleep(i)
@@ -280,8 +275,6 @@ class Twitter:
                 break
             except NoSuchElementException as e:
                 print(f"Page Load failed! Retrying... ({i+1}/{max_retries})")
-
-                browser.quit()
 
                 if i == max_retries-1:
                     return
@@ -328,8 +321,6 @@ class Twitter:
 
             self.tor.renew_circuit()
 
-        browser.quit()
-
 
 if __name__ == "__main__":
     use_tor = bool(os.getenv("USE_TOR", 0))
@@ -346,6 +337,8 @@ if __name__ == "__main__":
         quit()
          
     print(f"Username: @{username}")
+
+    browser = Browser(tor=tor)
 
     try:
         date_start = sys.argv[2]
@@ -384,7 +377,7 @@ if __name__ == "__main__":
         print(f"Start: {date_start}")
         print(f"End: {date_end}")
 
-        Twitter(username, tor).scrape_tweets(date_start, date_end)
+        Twitter(username, tor).scrape_tweets(browser, date_start, date_end)
     except KeyboardInterrupt:
         try:
             browser.quit()
