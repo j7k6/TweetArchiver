@@ -31,19 +31,27 @@ class Tor:
         self.torrc = list(tempfile.mkstemp(prefix="torrc"))[1]
 
 
-    def connect(self, timeout=60):
-        print("Starting Tor...")
+    def generate_torrc(self):
+        config = {
+            "SocksPort": self.socks_port,
+            "DataDirectory": self.data_directory
+        }
 
         try:
-            config = {
-                "SocksPort": self.socks_port,
-                "DataDirectory": self.data_directory
-            }
-
             with open(self.torrc, "w") as f:
                 for key, value in config.items():
                     f.write(f"{key} {value}\n")
+        except OSError as e:
+            print("Writing torrc failed! Exiting")
+            quit()
 
+
+    def connect(self, timeout=60):
+        print("Starting Tor...")
+
+        self.generate_torrc()
+
+        try:
             self.proc = subprocess.Popen([self.cmd, "-f", self.torrc], stdout=subprocess.PIPE)
 
             for i in range(timeout):
@@ -66,8 +74,8 @@ class Tor:
     def quit(self):
         try:
             self.proc.teminate()
-            shutil.rmtree(tor_data_directory, ignore_errors=True)
             os.remove(self.torrc)
+            shutil.rmtree(tor_data_directory, ignore_errors=True)
         except:
             pass
 
