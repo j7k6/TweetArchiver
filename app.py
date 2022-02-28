@@ -73,10 +73,18 @@ class Tor:
 
     def quit(self):
         try:
-            self.proc.teminate()
+            self.proc.kill()
+        except ProcessLookupError as e:
+            pass
+
+        try:
             os.remove(self.torrc)
-            shutil.rmtree(tor_data_directory, ignore_errors=True)
-        except:
+        except FileNotFoundError as e:
+            pass
+
+        try:
+            shutil.rmtree(self.data_directory, ignore_errors=True)
+        except FileNotFoundError as e:
             pass
 
 
@@ -85,7 +93,7 @@ class Tor:
             os.kill(self.proc.pid, signal.SIGHUP)
 
             print("New Tor Circuit established.")
-        except Exception as e:
+        except ProcessLookupError as e:
             print("Tor is not running!")
 
 
@@ -137,12 +145,12 @@ class Browser:
                 connection_error = False
             except Exception as e:
                 print(f"Connection Error! retrying in {retry_delay} seconds...")
-                print(e)
                 
                 if self.tor is not None:
                     self.tor.renew_circuit()
 
                 connection_error = True
+
                 time.sleep(retry_delay)
 
                 continue
