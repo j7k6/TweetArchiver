@@ -363,7 +363,7 @@ if __name__ == "__main__":
 
                 print(f"Lockfile found!")
             except FileNotFoundError:
-                date_start = Twitter(username, tor).get_joined_date()
+                date_start = Twitter(username, tor).get_joined_date(browser)
 
         try:
             datetime.datetime.strptime(date_start, "%Y-%m-%d")
