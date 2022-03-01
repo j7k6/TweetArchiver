@@ -264,9 +264,7 @@ class Twitter:
         logging.info(f"Finished! {tweets_total} tweets archived.")
 
 
-    def archive_tweet(self, browser, tweet_id, timeout=5):
-        start_time = time.time()
-
+    def archive_tweet(self, browser, tweet_id, timeout=30):
         try:
             with open(os.path.join(data_path, f"{self.username}.csv")) as f:
                 for row in csv.reader(f, delimiter="|"):
@@ -277,13 +275,32 @@ class Twitter:
 
         tweet_url = f"https://twitter.com/{self.username}/status/{tweet_id}"
 
+        tweet_error = True
+
+        start_time = time.time()
+
         browser.request(tweet_url)
 
-        try:
-            tweet_date_element = browser.driver.find_element(By.XPATH, f"//a[translate(@href, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='/{self.username}/status/{tweet_id}']")
-            tweet_element = tweet_date_element.find_element(By.XPATH, f"../../../../../../../../../..")
-        except NoSuchElementException as e:
-            logging.debug(f"Tweet '{tweet_id}' not found!")
+        total_time = time.time() - start_time
+
+        while total_time <= timeout:
+            try:
+                tweet_date_element = browser.driver.find_element(By.XPATH, f"//a[translate(@href, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='/{self.username}/status/{tweet_id}']")
+                tweet_element = tweet_date_element.find_element(By.XPATH, f"../../../../../../../../../..")
+
+                tweet_error = False
+
+                break
+            except NoSuchElementException as e:
+                continue
+
+            total_time = time.time() - start_time
+
+        if tweet_error:
+            if self.tor is not None:
+                logging.info(f"Tweet Error! Timeout reached ({tweet_id})...")
+
+                self.tor.renew_circuit()
 
             return
 
@@ -322,11 +339,6 @@ class Twitter:
         total_time = time.time() - start_time
 
         logging.info(f"{tweet_url} ({total_time:.2f}s)")
-
-        if self.tor is not None and total_time > 15:
-            logging.info("Page Load too slow! Establishing new Tor Circuit...")
-
-            self.tor.renew_circuit()
 
 
 if __name__ == "__main__":
