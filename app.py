@@ -7,6 +7,7 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
 import csv
 import datetime
+import logging
 import os
 import random
 import re
@@ -42,12 +43,12 @@ class Tor:
                 for key, value in config.items():
                     f.write(f"{key} {value}\n")
         except OSError as e:
-            print("Writing torrc failed! Exiting")
+            logging.error("Writing torrc failed! Exiting")
             quit()
 
 
     def connect(self, timeout=60):
-        print("Starting Tor...")
+        logging.info("Starting Tor...")
 
         self.generate_torrc()
 
@@ -63,9 +64,9 @@ class Tor:
                 if i == timeout-1:
                     raise Exception("Tor Error! Timeout...")
             
-            print(f"Tor running on SocksPort {self.socks_port}...")
+            logging.info(f"Tor running on SocksPort {self.socks_port}...")
         except Exception as e:
-            print("Tor Error! Not connected...")
+            logging.error("Tor Error! Not connected...")
             quit()
 
         return self
@@ -92,9 +93,9 @@ class Tor:
         try:
             os.kill(self.proc.pid, signal.SIGHUP)
 
-            print("New Tor Circuit established.")
+            logging.info("New Tor Circuit established.")
         except ProcessLookupError as e:
-            print("Tor is not running!")
+            logging.error("Tor is not running!")
 
 
 class Browser:
@@ -144,7 +145,7 @@ class Browser:
 
                 connection_error = False
             except Exception as e:
-                print(f"Connection Error! retrying in {retry_delay} seconds...")
+                logging.error(f"Connection Error! retrying in {retry_delay} seconds...")
                 
                 if self.tor is not None:
                     self.tor.renew_circuit()
@@ -159,7 +160,7 @@ class Browser:
                 try:
                     self.driver.find_element(By.XPATH, f"//span[text()='{msg}']")
 
-                    print(f"Twitter Error ['{msg}']! retrying in {retry_delay} seconds...")
+                    logging.error(f"Twitter Error ['{msg}']! retrying in {retry_delay} seconds...")
 
                     if self.tor is not None:
                         self.tor.renew_circuit()
@@ -188,7 +189,7 @@ class Twitter:
 
             return date_joined
         except NoSuchElementException as e:
-            print("Error!")
+            logging.error("Error! Joined Date not found... Exiting ")
 
             browser.quit()
             quit()
@@ -236,7 +237,7 @@ class Twitter:
             except:
                 pass
 
-            print(f"\n{date_current} ({len(tweet_ids)})")
+            logging.info(f"{date_current} ({len(tweet_ids)})")
 
             if len(tweet_ids) > 0:
                 for tweet_id in reversed(tweet_ids):
@@ -245,7 +246,7 @@ class Twitter:
 
             date_start = (datetime.datetime.strptime(date_start, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
 
-        print(f"\nFinished! {tweets_total} tweets archived.")
+        logging.info(f"Finished! {tweets_total} tweets archived.")
 
 
     def archive_tweet(self, browser, tweet_id, max_retries = 5):
@@ -272,7 +273,7 @@ class Twitter:
 
                 break
             except NoSuchElementException as e:
-                print(f"Page Load failed! Retrying... ({i+1}/{max_retries})")
+                logging.error(f"Page Load failed! Retrying... ({i+1}/{max_retries})")
 
                 if i == max_retries-1:
                     return
@@ -298,7 +299,7 @@ class Twitter:
             with open(os.path.join(data_path, f"{self.username}.csv"), "a+") as f:
                 csv.writer(f, delimiter="|").writerow([tweet_id, tweet_date, tweet_text])
         except Exception as e:
-            print("Failed to write to CSV file!")
+            logging.error("Failed to write to CSV file!")
 
             return
 
@@ -306,21 +307,25 @@ class Twitter:
             with open(os.path.join(data_path, "screenshots", f"{tweet_id}.png"), "wb") as screenshot_file:
                 screenshot_file.write(tweet_element.screenshot_as_png)
         except Exception as e:
-            print("Failed to save screenshot file")
+            logging.error("Failed to save screenshot file")
 
             return
 
         total_time = time.time() - start_time
 
-        print(f"{tweet_url} ({total_time:.2f}s)")
+        logging.info(f"{tweet_url} ({total_time:.2f}s)")
 
         if self.tor is not None and total_time > 15:
-            print("Page Load too slow! Establishing new Tor Circuit...")
+            logging.info("Page Load too slow! Establishing new Tor Circuit...")
 
             self.tor.renew_circuit()
 
 
 if __name__ == "__main__":
+    debug = bool(os.getenv("DEBUG", 0))
+    loglevel = logging.DEBUG if debug else logging.INFO
+    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=loglevel)
+
     use_tor = bool(os.getenv("USE_TOR", 0))
 
     if use_tor:
@@ -331,10 +336,10 @@ if __name__ == "__main__":
     try:
         username = sys.argv[1].lower()
     except IndexError:
-        print("No Username given! Exiting...")
+        logging.error("No Username given! Exiting...")
         quit()
          
-    print(f"Username: @{username}")
+    logging.info(f"Username: @{username}")
 
     browser = Browser(tor=tor)
 
@@ -361,7 +366,7 @@ if __name__ == "__main__":
                 with open(os.path.join(data_path, f"{username}.lock")) as f:
                     date_start = f.read().replace("\n", "")
 
-                print(f"Lockfile found!")
+                logging.info(f"Lockfile found!")
             except FileNotFoundError:
                 date_start = Twitter(username, tor).get_joined_date(browser)
 
@@ -369,11 +374,11 @@ if __name__ == "__main__":
             datetime.datetime.strptime(date_start, "%Y-%m-%d")
             datetime.datetime.strptime(date_end, "%Y-%m-%d")
         except ValueError:
-            print("Invalid Date Format! Exiting...")
+            logging.error("Invalid Date Format! Exiting...")
             quit()
 
-        print(f"Start: {date_start}")
-        print(f"End: {date_end}")
+        logging.info(f"Start: {date_start}")
+        logging.info(f"End: {date_end}")
 
         Twitter(username, tor).scrape_tweets(browser, date_start, date_end)
     except KeyboardInterrupt:
@@ -385,4 +390,4 @@ if __name__ == "__main__":
         if tor is not None:
             tor.quit()
 
-        print("Exiting...")
+        logging.info("Exiting...")
