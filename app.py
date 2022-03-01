@@ -54,17 +54,24 @@ class Tor:
 
         try:
             self.proc = subprocess.Popen([self.cmd, "-f", self.torrc], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            
+            tor_error = True
 
-            for i in range(timeout):
-                time.sleep(1)
+            start_time = time.time()
+            total_time = 0
 
+            while total_time <= timeout:
                 if "Bootstrapped 100% (done): Done" in self.proc.stdout.readline().decode():
+                    logging.info(f"Tor running on SocksPort {self.socks_port}...")
+
+                    tor_error = False
+
                     break
 
-                if i == timeout-1:
-                    raise Exception("Tor Error! Timeout...")
-            
-            logging.info(f"Tor running on SocksPort {self.socks_port}...")
+                total_time = time.time() - start_time
+
+            if tor_error:
+                raise Exception("Tor Error! Timeout...")
         except Exception as e:
             logging.error("Tor Error! Not connected...")
             quit()
@@ -127,12 +134,12 @@ class Browser:
         self.driver.quit()
 
 
-    def request(self, url, wait_delay=1, retry_delay=10):
+    def request(self, url, timeout=1, retry_delay=10):
         error_messages = ["Sorry, you are rate limited. Please wait a few moments then try again.",
                           "Something went wrong. Try reloading."]
 
         if self.tor is not None:
-            wait_delay = 5
+            timeout = 3
 
         connection_error = True
         twitter_error = True
@@ -140,8 +147,6 @@ class Browser:
         while connection_error or twitter_error:
             try:
                 self.driver.get(url)
-
-                time.sleep(wait_delay)
 
                 connection_error = False
             except Exception as e:
@@ -156,22 +161,31 @@ class Browser:
 
                 continue
 
+            start_time = time.time()
+            total_time = 0
+
             for msg in error_messages:
-                try:
-                    self.driver.find_element(By.XPATH, f"//span[text()='{msg}']")
+                while total_time <= timeout:
+                    try:
+                        self.driver.find_element(By.XPATH, f"//span[text()='{msg}']")
 
-                    logging.error(f"Twitter Error ['{msg}']! retrying in {retry_delay} seconds...")
+                        twitter_error = True
 
-                    if self.tor is not None:
-                        self.tor.renew_circuit()
-                    
-                    twitter_error = True
+                        break
+                    except NoSuchElementException:
+                        twitter_error = False
 
-                    time.sleep(retry_delay)
+                    total_time = time.time() - start_time
 
-                    break
-                except NoSuchElementException:
-                    twitter_error = False
+            if not twitter_error:
+                break
+
+            logging.error(f"Twitter Error ['{msg}']! retrying in {retry_delay} seconds...")
+
+            if self.tor is not None:
+                self.tor.renew_circuit()
+
+            time.sleep(retry_delay)
 
 
 class Twitter:
@@ -192,6 +206,7 @@ class Twitter:
             logging.error("Error! Joined Date not found... Exiting ")
 
             browser.quit()
+            self.tor.quit()
             quit()
 
 
@@ -249,7 +264,7 @@ class Twitter:
         logging.info(f"Finished! {tweets_total} tweets archived.")
 
 
-    def archive_tweet(self, browser, tweet_id, max_retries = 5):
+    def archive_tweet(self, browser, tweet_id, timeout=5):
         start_time = time.time()
 
         try:
@@ -262,21 +277,15 @@ class Twitter:
 
         tweet_url = f"https://twitter.com/{self.username}/status/{tweet_id}"
 
-        for i in range(max_retries):
-            try:
-                browser.request(tweet_url)
+        browser.request(tweet_url)
 
-                time.sleep(i)
+        try:
+            tweet_date_element = browser.driver.find_element(By.XPATH, f"//a[translate(@href, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='/{self.username}/status/{tweet_id}']")
+            tweet_element = tweet_date_element.find_element(By.XPATH, f"../../../../../../../../../..")
+        except NoSuchElementException as e:
+            logging.debug(f"Tweet '{tweet_id}' not found!")
 
-                tweet_date_element = browser.driver.find_element(By.XPATH, f"//a[translate(@href, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='/{self.username}/status/{tweet_id}']")
-                tweet_element = tweet_date_element.find_element(By.XPATH, f"../../../../../../../../../..")
-
-                break
-            except NoSuchElementException as e:
-                logging.error(f"Page Load failed! Retrying... ({i+1}/{max_retries})")
-
-                if i == max_retries-1:
-                    return
+            return
 
         try:
             tweet_text = tweet_element.find_element(By.CSS_SELECTOR, "article div > div > div:nth-child(3) div[id^='id_']").text.replace("\n", " ").replace("  ", " ")
@@ -292,7 +301,6 @@ class Twitter:
             try:
                 tweet_date = datetime.datetime.strptime(tweet_date_element.find_element(By.CSS_SELECTOR, "span").text, "%I:%M %p · %b %d, %Y").isoformat()
             except NoSuchElementException as e:
-                browser.quit()
                 return
 
         try:
@@ -323,15 +331,9 @@ class Twitter:
 
 if __name__ == "__main__":
     debug = bool(os.getenv("DEBUG", 0))
+
     loglevel = logging.DEBUG if debug else logging.INFO
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=loglevel)
-
-    use_tor = bool(os.getenv("USE_TOR", 0))
-
-    if use_tor:
-        tor = Tor().connect()
-    else:
-        tor = None
 
     try:
         username = sys.argv[1].lower()
@@ -340,6 +342,13 @@ if __name__ == "__main__":
         quit()
          
     logging.info(f"Username: @{username}")
+
+    use_tor = bool(os.getenv("USE_TOR", 0))
+
+    if use_tor:
+        tor = Tor().connect()
+    else:
+        tor = None
 
     browser = Browser(tor=tor)
 
@@ -375,6 +384,10 @@ if __name__ == "__main__":
             datetime.datetime.strptime(date_end, "%Y-%m-%d")
         except ValueError:
             logging.error("Invalid Date Format! Exiting...")
+
+            if tor is not None:
+                tor.quit()
+
             quit()
 
         logging.info(f"Start: {date_start}")
