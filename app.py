@@ -44,8 +44,7 @@ class Tor:
                 for key, value in config.items():
                     f.write(f"{key} {value}\n")
         except OSError as e:
-            logging.error("Writing torrc failed! Exiting")
-
+            logging.critical("Writing torrc failed! Exiting")
             quit()
 
 
@@ -76,7 +75,6 @@ class Tor:
                 raise Exception("Tor Error! Timeout...")
         except Exception as e:
             logging.error("Tor Error! Not connected...")
-
             quit()
 
         return self
@@ -86,16 +84,19 @@ class Tor:
         try:
             self.proc.kill()
         except ProcessLookupError as e:
+            logging.debug(e)
             pass
 
         try:
             os.remove(self.torrc)
         except FileNotFoundError as e:
+            logging.debug(e)
             pass
 
         try:
             shutil.rmtree(self.data_directory, ignore_errors=True)
         except FileNotFoundError as e:
+            logging.debug(e)
             pass
 
 
@@ -105,7 +106,7 @@ class Tor:
 
             logging.info("New Tor Circuit established.")
         except ProcessLookupError as e:
-            logging.error("Tor is not running!")
+            logging.warning("Tor is not running!")
 
 
 class Browser:
@@ -134,6 +135,7 @@ class Browser:
 
 
     def quit(self):
+        logging.debug("Quitting browser...")
         self.driver.quit()
 
 
@@ -175,7 +177,8 @@ class Browser:
                         twitter_error = True
 
                         break
-                    except NoSuchElementException:
+                    except NoSuchElementException as e:
+                        logging.debug(e)
                         twitter_error = False
 
                     total_time = time.time() - start_time
@@ -206,10 +209,12 @@ class Twitter:
 
             return date_joined
         except NoSuchElementException as e:
-            logging.error("Error! Joined Date not found... Exiting ")
+            logging.error("Error! User not found... Exiting")
+
+            if self.tor is not None:
+                self.tor.quit()
 
             browser.quit()
-            self.tor.quit()
             quit()
 
 
@@ -247,12 +252,14 @@ class Twitter:
                     tweet_id = tweet.find_element(By.CSS_SELECTOR, "time").find_element(By.XPATH, "..").get_attribute("href").split("/")[-1]
                     tweet_ids.append(tweet_id)
                 except Exception as e:
+                    logging.debug(e)
                     pass
 
             try:
                 with open(os.path.join(data_path, f"{self.username}.lock"), "w") as f:
                     f.write(f"{date_start}")
             except:
+                logging.debug(e)
                 pass
 
             logging.info(f"{date_current} ({len(tweet_ids)})")
@@ -288,6 +295,7 @@ class Twitter:
 
                         return True
         except FileNotFoundError:
+            logging.debug(e)
             pass
 
         tweet_url = f"https://twitter.com/{self.username}/status/{tweet_id}"
@@ -387,36 +395,34 @@ if __name__ == "__main__":
 
     try:
         date_start = sys.argv[2]
-    except IndexError:
+    except IndexError as e:
+        logging.debug(e)
         date_start = None
 
     try:
         date_end = sys.argv[3]
-    except IndexError:
+    except IndexError as e:
+        logging.debug(e)
         date_end = datetime.datetime.today().strftime("%Y-%m-%d")
 
+    data_path = os.path.join("data", username)
+
     try:
-        data_path = os.path.join("data", username)
-
-        try:
-            os.makedirs(os.path.join(data_path, "screenshots"))
-        except OSError:
-            pass
-
         if date_start is None:
             try:
                 with open(os.path.join(data_path, f"{username}.lock")) as f:
                     date_start = f.read().replace("\n", "")
 
                 logging.info(f"Lockfile found!")
-            except FileNotFoundError:
+            except FileNotFoundError as e:
+                logging.debug(e)
                 date_start = Twitter(username, tor).get_joined_date(browser)
 
         try:
             datetime.datetime.strptime(date_start, "%Y-%m-%d")
             datetime.datetime.strptime(date_end, "%Y-%m-%d")
-        except ValueError:
-            logging.error("Invalid Date Format! Exiting...")
+        except ValueError as e:
+            logging.critical("Invalid Date Format! Exiting...")
 
             if tor is not None:
                 tor.quit()
@@ -426,11 +432,18 @@ if __name__ == "__main__":
         logging.info(f"Start: {date_start}")
         logging.info(f"End: {date_end}")
 
+        try:
+            os.makedirs(os.path.join(data_path, "screenshots"))
+        except OSError as e:
+            logging.debug(e)
+            pass
+
         Twitter(username, tor).scrape_tweets(browser, date_start, date_end)
     except KeyboardInterrupt:
         try:
             browser.quit()
         except:
+            logging.debug(e)
             pass
 
         if tor is not None:
