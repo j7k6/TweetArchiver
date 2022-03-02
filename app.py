@@ -5,7 +5,6 @@ from selenium.webdriver import Firefox
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
-from selenium.webdriver.remote.remote_connection import LOGGER
 import csv
 import datetime
 import logging
