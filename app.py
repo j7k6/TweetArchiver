@@ -26,8 +26,7 @@ class Tor:
     def __init__(self, cmd=os.getenv("TOR_CMD", "/opt/homebrew/bin/tor")):
         self.cmd = cmd
         self.proc = None
-        self.listen_address = "127.0.0.1"
-        self.socks_port = random.randrange(10000, 20000)
+        self.socks_port = None
         self.data_directory = tempfile.mkdtemp(prefix="tordata")
         self.torrc = list(tempfile.mkstemp(prefix="torrc"))[1]
 
@@ -47,8 +46,23 @@ class Tor:
             quit()
 
 
+    def set_socks_port(self, port_from=9050, port_to=19050):
+        while True:
+            socks_port = random.randrange(port_from, port_to)
+             
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                if s.connect_ex(("127.0.0.1", socks_port)) != 0:
+                    logging.debug(f"SocksPort {socks_port} is available.")
+                    return socks_port
+
+            logging.warning(f"SocksPort {socks_port} is NOT available! Trying other port...")
+
+
+
     def connect(self, timeout=60):
         logging.info("Starting Tor...")
+
+        self.socks_port = self.set_socks_port()
 
         self.generate_torrc()
 
@@ -126,7 +140,7 @@ class Browser:
 
         if tor is not None:
             options.set_preference("network.proxy.type", 1)
-            options.set_preference("network.proxy.socks", tor.listen_address)
+            options.set_preference("network.proxy.socks", "127.0.0.1")
             options.set_preference("network.proxy.socks_port", tor.socks_port)
             options.set_preference("network.proxy.socks_remote_dns", False)
 
