@@ -191,7 +191,6 @@ class Browser:
 
                         break
                     except NoSuchElementException as e:
-                        logging.debug(e)
                         twitter_error = False
 
                     total_time = time.time() - start_time
