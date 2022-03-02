@@ -58,7 +58,6 @@ class Tor:
             logging.warning(f"SocksPort {socks_port} is NOT available! Trying other port...")
 
 
-
     def connect(self, timeout=60):
         logging.info("Starting Tor...")
 
