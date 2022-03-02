@@ -5,6 +5,7 @@ from selenium.webdriver import Firefox
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
+from selenium.webdriver.remote.remote_connection import LOGGER
 import csv
 import datetime
 import logging
@@ -44,6 +45,7 @@ class Tor:
                     f.write(f"{key} {value}\n")
         except OSError as e:
             logging.error("Writing torrc failed! Exiting")
+
             quit()
 
 
@@ -74,6 +76,7 @@ class Tor:
                 raise Exception("Tor Error! Timeout...")
         except Exception as e:
             logging.error("Tor Error! Not connected...")
+
             quit()
 
         return self
@@ -139,7 +142,7 @@ class Browser:
                           "Something went wrong. Try reloading."]
 
         if self.tor is not None:
-            timeout = 3
+            timeout *= 2
 
         connection_error = True
         twitter_error = True
@@ -210,7 +213,7 @@ class Twitter:
             quit()
 
 
-    def scrape_tweets(self, browser, date_start, date_end):
+    def scrape_tweets(self, browser, date_start, date_end, max_retries=3):
         tweets_total = 0
 
         while datetime.datetime.strptime(date_start, "%Y-%m-%d") <= datetime.datetime.strptime(date_end, "%Y-%m-%d"):
@@ -243,7 +246,7 @@ class Twitter:
                 try:
                     tweet_id = tweet.find_element(By.CSS_SELECTOR, "time").find_element(By.XPATH, "..").get_attribute("href").split("/")[-1]
                     tweet_ids.append(tweet_id)
-                except NoSuchElementException as e:
+                except Exception as e:
                     pass
 
             try:
@@ -256,7 +259,19 @@ class Twitter:
 
             if len(tweet_ids) > 0:
                 for tweet_id in reversed(tweet_ids):
-                    self.archive_tweet(browser, tweet_id)
+                    archived = None
+
+                    for retry in range(max_retries):
+                        archived = self.archive_tweet(browser, tweet_id)
+
+                        if archived:
+                            break
+
+                        logging.error(f"Tweet Error! retrying {tweet_id}... ({retry+1}/{max_retries})")
+
+                    if archived is None:
+                        logging.error(f"Failed to archive Tweet {tweet_id}!")
+
                     tweets_total += 1
 
             date_start = (datetime.datetime.strptime(date_start, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
@@ -269,7 +284,9 @@ class Twitter:
             with open(os.path.join(data_path, f"{self.username}.csv")) as f:
                 for row in csv.reader(f, delimiter="|"):
                     if row[0] == tweet_id:
-                        return
+                        logging.debug(f"Tweet {tweet_id} already exists. skipping...")
+
+                        return True
         except FileNotFoundError:
             pass
 
@@ -340,12 +357,16 @@ class Twitter:
 
         logging.info(f"{tweet_url} ({total_time:.2f}s)")
 
+        return True
+
 
 if __name__ == "__main__":
     debug = bool(os.getenv("DEBUG", 0))
-
     loglevel = logging.DEBUG if debug else logging.INFO
-    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=loglevel)
+
+    logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=loglevel)
+    logging.getLogger('selenium.webdriver.remote.remote_connection').setLevel(logging.CRITICAL)
+    logging.getLogger("urllib3").setLevel(logging.CRITICAL)
 
     try:
         username = sys.argv[1].lower()
