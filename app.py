@@ -95,6 +95,7 @@ class Tor:
 
     def quit(self):
         logging.debug("Quitting Tor...")
+
         try:
             self.proc.kill()
         except ProcessLookupError as e:
