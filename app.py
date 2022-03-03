@@ -83,8 +83,7 @@ class Tor:
 
                 total_time = time.time() - start_time
 
-            if tor_error:
-                raise Exception("Tor Error! Timeout... Exiting")
+            assert not tor_error
         except Exception as e:
             logging.debug(e)
             logging.error("Tor Error! Not connected... Exiting")
