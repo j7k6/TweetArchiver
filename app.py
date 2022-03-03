@@ -23,7 +23,7 @@ import urllib
 
 
 class Tor:
-    def __init__(self, cmd=os.getenv("TOR_CMD", "/opt/homebrew/bin/tor")):
+    def __init__(self, cmd=os.getenv("TOR_CMD", "tor")):
         self.cmd = cmd
         self.proc = None
         self.socks_port = None
@@ -84,15 +84,17 @@ class Tor:
                 total_time = time.time() - start_time
 
             if tor_error:
-                raise Exception("Tor Error! Timeout...")
+                raise Exception("Tor Error! Timeout... Exiting")
         except Exception as e:
-            logging.error("Tor Error! Not connected...")
+            logging.debug(e)
+            logging.error("Tor Error! Not connected... Exiting")
             quit()
 
         return self
 
 
     def quit(self):
+        logging.debug("Quitting Tor...")
         try:
             self.proc.kill()
         except ProcessLookupError as e:
@@ -212,6 +214,7 @@ class Twitter:
 
 
     def get_joined_date(self, browser):
+        logging.debug("Fetching Joined Date...")
         browser.request(f"https://twitter.com/{self.username}")
 
         try:
@@ -305,7 +308,7 @@ class Twitter:
                         logging.debug(f"Tweet {tweet_id} already exists. skipping...")
 
                         return True
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             logging.debug(e)
             pass
 
@@ -395,12 +398,10 @@ if __name__ == "__main__":
          
     logging.info(f"Username: @{username}")
 
-    use_tor = bool(os.getenv("USE_TOR", 0))
+    tor = None
 
-    if use_tor:
+    if bool(os.getenv("USE_TOR", 0)):
         tor = Tor().connect()
-    else:
-        tor = None
 
     browser = Browser(tor=tor)
 
