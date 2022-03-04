@@ -164,6 +164,8 @@ class Browser:
         connection_error = True
         twitter_error = True
 
+        self.driver.delete_all_cookies()
+
         while connection_error or twitter_error:
             try:
                 self.driver.get(url)
@@ -273,7 +275,7 @@ class Twitter:
                     pass
 
             try:
-                with open(os.path.join(data_path, f"{self.username}.lock"), "w") as f:
+                with open(os.path.join(data_path, username, f"{self.username}.lock"), "w") as f:
                     f.write(f"{date_start}")
             except:
                 logging.debug(e)
@@ -305,7 +307,7 @@ class Twitter:
 
     def archive_tweet(self, browser, tweet_id, timeout=30):
         try:
-            with open(os.path.join(data_path, f"{self.username}.csv")) as f:
+            with open(os.path.join(data_path, username, f"{self.username}.csv")) as f:
                 for row in csv.reader(f, delimiter="|"):
                     if row[0] == tweet_id:
                         logging.debug(f"Tweet {tweet_id} already exists. skipping...")
@@ -365,7 +367,7 @@ class Twitter:
                 return
 
         try:
-            with open(os.path.join(data_path, f"{self.username}.csv"), "a+") as f:
+            with open(os.path.join(data_path, username, f"{self.username}.csv"), "a+") as f:
                 csv.writer(f, delimiter="|").writerow([tweet_id, tweet_date, tweet_text])
         except Exception as e:
             logging.error("Failed to write to CSV file!")
@@ -373,7 +375,7 @@ class Twitter:
             return
 
         try:
-            with open(os.path.join(data_path, "screenshots", f"{tweet_id}.png"), "wb") as screenshot_file:
+            with open(os.path.join(data_path, username, "screenshots", f"{tweet_id}.png"), "wb") as screenshot_file:
                 screenshot_file.write(tweet_element.screenshot_as_png)
         except Exception as e:
             logging.error("Failed to save screenshot file")
@@ -388,74 +390,97 @@ class Twitter:
 
 
 if __name__ == "__main__":
-    debug = bool(os.getenv("DEBUG", 0))
-    loglevel = logging.DEBUG if debug else logging.INFO
-
-    logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=loglevel)
-    logging.getLogger('selenium.webdriver.remote.remote_connection').setLevel(logging.CRITICAL)
-    logging.getLogger("urllib3").setLevel(logging.CRITICAL)
-
     try:
-        username = sys.argv[1].lower()
-    except IndexError:
-        logging.error("No Username given! Exiting...")
-        quit()
-         
-    logging.info(f"Username: @{username}")
+        debug = bool(int(os.getenv("DEBUG", 0)))
+        loglevel = logging.DEBUG if debug else logging.INFO
 
-    tor = None
+        logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=loglevel)
+        logging.getLogger('selenium.webdriver.remote.remote_connection').setLevel(logging.CRITICAL)
+        logging.getLogger("urllib3").setLevel(logging.CRITICAL)
 
-    if bool(os.getenv("USE_TOR", 0)):
-        tor = Tor().connect()
+        headless = bool(int(os.getenv("HEADLESS", 1)))
 
-    browser = Browser(tor=tor)
+        data_path = os.getenv("DATA_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "data"))
 
-    try:
-        date_start = sys.argv[2]
-    except IndexError as e:
-        logging.debug(e)
-        date_start = None
-
-    try:
-        date_end = sys.argv[3]
-    except IndexError as e:
-        logging.debug(e)
-        date_end = datetime.datetime.today().strftime("%Y-%m-%d")
-
-    data_path = os.path.join("data", username)
-
-    try:
-        if date_start is None:
-            try:
-                with open(os.path.join(data_path, f"{username}.lock")) as f:
-                    date_start = f.read().replace("\n", "")
-
-                logging.info(f"Lockfile found!")
-            except FileNotFoundError as e:
-                logging.debug(e)
-                date_start = Twitter(username, tor).get_joined_date(browser)
+        username = None
 
         try:
-            datetime.datetime.strptime(date_start, "%Y-%m-%d")
-            datetime.datetime.strptime(date_end, "%Y-%m-%d")
-        except ValueError as e:
-            logging.critical("Invalid Date Format! Exiting...")
+            username = sys.argv[1].lower()
+            usernames = [username] 
+        except IndexError:
+            logging.debug("No Username given...")
 
-            if tor is not None:
-                tor.quit()
+        if username is None:
+            try:
+                usernames = sorted(next(os.walk(data_path))[1])
+            except Exception as e:
+                logging.critical("Error! Cannot read data path... Exiting")
+                quit()
 
+        if len(usernames) == 0:
+            logging.error("Error! No usernames given... Exiting")
             quit()
 
-        logging.info(f"Start: {date_start}")
-        logging.info(f"End: {date_end}")
+        logging.debug(f"Usernames found: {', '.join(usernames)}")
+
+        tor = None
+
+        if bool(int(os.getenv("USE_TOR", 0))):
+            tor = Tor().connect()
 
         try:
-            os.makedirs(os.path.join(data_path, "screenshots"))
-        except OSError as e:
+            date_start = sys.argv[2]
+        except IndexError as e:
             logging.debug(e)
-            pass
+            date_start = None
 
-        Twitter(username, tor).scrape_tweets(browser, date_start, date_end)
+        try:
+            date_end = sys.argv[3]
+        except IndexError as e:
+            logging.debug(e)
+            date_end = datetime.datetime.today().strftime("%Y-%m-%d")
+
+        for username in usernames:
+            logging.info(f"Username: @{username}")
+
+            browser = Browser(tor=tor, headless=headless)
+
+            if date_start is None:
+                try:
+                    with open(os.path.join(data_path, username, f"{username}.lock")) as f:
+                        date_start = f.read().replace("\n", "")
+
+                    logging.info(f"Lockfile found!")
+                except FileNotFoundError as e:
+                    logging.debug(e)
+                    date_start = Twitter(username, tor).get_joined_date(browser)
+
+            try:
+                datetime.datetime.strptime(date_start, "%Y-%m-%d")
+                datetime.datetime.strptime(date_end, "%Y-%m-%d")
+            except ValueError as e:
+                logging.critical("Invalid Date Format! Exiting...")
+
+                if tor is not None:
+                    tor.quit()
+
+                quit()
+
+            logging.info(f"Start: {date_start}")
+            logging.info(f"End: {date_end}")
+
+            try:
+                os.makedirs(os.path.join(data_path, username, "screenshots"))
+            except OSError as e:
+                logging.debug(e)
+                pass
+
+            Twitter(username, tor).scrape_tweets(browser, date_start, date_end)
+
+            browser.quit()
+            
+            date_start = None
+            date_end = None
     except KeyboardInterrupt:
         try:
             browser.quit()
