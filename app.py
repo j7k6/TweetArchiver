@@ -336,6 +336,8 @@ class Twitter:
             except NoSuchElementException as e:
                 continue
 
+            time.sleep(.1)
+
             total_time = time.time() - start_time
 
         if tweet_error:
