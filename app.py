@@ -124,7 +124,7 @@ class Tor:
 
 
 class Browser:
-    def __init__(self, width=2000, height=3000, locale="en-us", headless=True, tor=None):
+    def __init__(self, width=2000, height=3000, load_timeout=30, locale="en-us", headless=True, tor=None):
         self.tor = tor
 
         options = Options()
@@ -146,10 +146,11 @@ class Browser:
             options.set_preference("network.proxy.socks_remote_dns", False)
 
         self.driver = Firefox(options=options)
+        self.driver.set_page_load_timeout(load_timeout)
 
 
     def quit(self):
-        logging.debug("Quitting browser...")
+        logging.debug("Quitting Browser...")
         self.driver.quit()
 
 
@@ -193,6 +194,8 @@ class Browser:
                         break
                     except NoSuchElementException as e:
                         twitter_error = False
+                    
+                    time.sleep(.1)
 
                     total_time = time.time() - start_time
 
