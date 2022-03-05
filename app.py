@@ -428,22 +428,22 @@ if __name__ == "__main__":
         if bool(int(os.getenv("USE_TOR", 0))):
             tor = Tor().connect()
 
-        try:
-            date_start = sys.argv[2]
-        except IndexError as e:
-            logging.debug(e)
-            date_start = None
-
-        try:
-            date_end = sys.argv[3]
-        except IndexError as e:
-            logging.debug(e)
-            date_end = datetime.datetime.today().strftime("%Y-%m-%d")
-
         for username in usernames:
             logging.info(f"Username: @{username}")
 
             browser = Browser(tor=tor, headless=headless)
+
+            try:
+                date_start = sys.argv[2]
+            except IndexError as e:
+                logging.debug(e)
+                date_start = None
+
+            try:
+                date_end = sys.argv[3]
+            except IndexError as e:
+                logging.debug(e)
+                date_end = datetime.datetime.today().strftime("%Y-%m-%d")
 
             if date_start is None:
                 try:
@@ -478,9 +478,6 @@ if __name__ == "__main__":
             Twitter(username, tor).scrape_tweets(browser, date_start, date_end)
 
             browser.quit()
-            
-            date_start = None
-            date_end = None
     except KeyboardInterrupt:
         try:
             browser.quit()
