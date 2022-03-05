@@ -164,10 +164,9 @@ class Browser:
         connection_error = True
         twitter_error = True
 
-        self.driver.delete_all_cookies()
-
         while connection_error or twitter_error:
             try:
+                self.driver.delete_all_cookies()
                 self.driver.get(url)
 
                 connection_error = False
@@ -181,35 +180,34 @@ class Browser:
 
                 time.sleep(retry_delay)
 
-                continue
+            if not connection_error:
+                start_time = time.time()
+                total_time = 0
 
-            start_time = time.time()
-            total_time = 0
+                for msg in error_messages:
+                    while total_time <= timeout:
+                        try:
+                            self.driver.find_element(By.XPATH, f"//span[text()='{msg}']")
 
-            for msg in error_messages:
-                while total_time <= timeout:
-                    try:
-                        self.driver.find_element(By.XPATH, f"//span[text()='{msg}']")
+                            twitter_error = True
 
-                        twitter_error = True
+                            break
+                        except NoSuchElementException as e:
+                            twitter_error = False
+                        
+                        time.sleep(.1)
 
-                        break
-                    except NoSuchElementException as e:
-                        twitter_error = False
-                    
-                    time.sleep(.1)
+                        total_time = time.time() - start_time
 
-                    total_time = time.time() - start_time
+                if not twitter_error:
+                    break
 
-            if not twitter_error:
-                break
+                logging.error(f"Twitter Error ['{msg}']! retrying in {retry_delay} seconds...")
 
-            logging.error(f"Twitter Error ['{msg}']! retrying in {retry_delay} seconds...")
+                if self.tor is not None:
+                    self.tor.renew_circuit()
 
-            if self.tor is not None:
-                self.tor.renew_circuit()
-
-            time.sleep(retry_delay)
+                time.sleep(retry_delay)
 
 
 class Twitter:
@@ -399,10 +397,9 @@ if __name__ == "__main__":
         logging.getLogger("urllib3").setLevel(logging.CRITICAL)
 
         headless = bool(int(os.getenv("HEADLESS", 1)))
+        ignore_lockfile = bool(int(os.getenv("IGNORE_LOCKFILE", 0)))
 
         data_path = os.getenv("DATA_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "data"))
-
-        username = None
 
         try:
             username = sys.argv[1].lower()
@@ -410,7 +407,6 @@ if __name__ == "__main__":
         except IndexError:
             logging.debug("No Username given...")
 
-        if username is None:
             try:
                 usernames = sorted(next(os.walk(data_path))[1])
             except Exception as e:
@@ -447,11 +443,13 @@ if __name__ == "__main__":
 
             if date_start is None:
                 try:
+                    assert not ignore_lockfile
+
                     with open(os.path.join(data_path, username, f"{username}.lock")) as f:
                         date_start = f.read().replace("\n", "")
 
                     logging.info(f"Lockfile found!")
-                except FileNotFoundError as e:
+                except Exception as e:
                     logging.debug(e)
                     date_start = Twitter(username, tor).get_joined_date(browser)
 
