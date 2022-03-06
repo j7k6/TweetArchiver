@@ -11,7 +11,6 @@ import logging
 import os
 import random
 import re
-import requests
 import shutil
 import signal
 import socket
@@ -161,53 +160,46 @@ class Browser:
         if self.tor is not None:
             timeout *= 2
 
-        connection_error = True
-        twitter_error = True
-
-        while connection_error or twitter_error:
+        while True:
             try:
                 self.driver.delete_all_cookies()
                 self.driver.get(url)
-
-                connection_error = False
             except Exception as e:
                 logging.error(f"Connection Error! retrying in {retry_delay} seconds...")
                 
                 if self.tor is not None:
                     self.tor.renew_circuit()
 
-                connection_error = True
-
                 time.sleep(retry_delay)
 
-            if not connection_error:
-                start_time = time.time()
-                total_time = 0
+                continue
 
-                for msg in error_messages:
-                    while total_time <= timeout:
-                        try:
-                            self.driver.find_element(By.XPATH, f"//span[text()='{msg}']")
+            start_time = time.time()
+            total_time = 0
 
-                            twitter_error = True
+            for msg in error_messages:
+                while total_time <= timeout:
+                    try:
+                        self.driver.find_element(By.XPATH, f"//span[text()='{msg}']")
 
-                            break
-                        except NoSuchElementException as e:
-                            twitter_error = False
-                        
-                        time.sleep(.1)
+                        logging.error(f"Twitter Error ['{msg}']! retrying in {retry_delay} seconds...")
 
-                        total_time = time.time() - start_time
+                        if self.tor is not None:
+                            self.tor.renew_circuit()
 
-                if not twitter_error:
-                    break
+                        time.sleep(retry_delay)
 
-                logging.error(f"Twitter Error ['{msg}']! retrying in {retry_delay} seconds...")
+                        continue
+                    except NoSuchElementException as e:
+                        pass
 
-                if self.tor is not None:
-                    self.tor.renew_circuit()
+                    time.sleep(.1)
 
-                time.sleep(retry_delay)
+                    total_time = time.time() - start_time
+                else:
+                    continue
+            else:
+                break
 
 
 class Twitter:
@@ -317,8 +309,6 @@ class Twitter:
 
         tweet_url = f"https://twitter.com/{self.username}/status/{tweet_id}"
 
-        tweet_error = True
-
         start_time = time.time()
 
         browser.request(tweet_url)
@@ -334,13 +324,12 @@ class Twitter:
 
                 break
             except NoSuchElementException as e:
+                time.sleep(.1)
+
+                total_time = time.time() - start_time
+
                 continue
-
-            time.sleep(.1)
-
-            total_time = time.time() - start_time
-
-        if tweet_error:
+        else:
             if self.tor is not None:
                 logging.info(f"Tweet Error! Timeout reached ({tweet_id})...")
 
