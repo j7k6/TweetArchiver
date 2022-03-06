@@ -328,9 +328,9 @@ class Twitter:
 
                 continue
         else:
-            if self.tor is not None:
-                logging.info(f"Tweet Error! Timeout reached ({tweet_id})...")
+            logging.info(f"Tweet Error! Timeout reached ({tweet_id})...")
 
+            if self.tor is not None:
                 self.tor.renew_circuit()
 
             return
