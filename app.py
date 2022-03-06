@@ -320,8 +320,6 @@ class Twitter:
                 tweet_date_element = browser.driver.find_element(By.XPATH, f"//a[translate(@href, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='/{self.username}/status/{tweet_id}']")
                 tweet_element = tweet_date_element.find_element(By.XPATH, f"../../../../../../../../../..")
 
-                tweet_error = False
-
                 break
             except NoSuchElementException as e:
                 time.sleep(.1)
