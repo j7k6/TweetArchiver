@@ -188,6 +188,9 @@ class Browser:
                         self.request(url, timeout, retry_delay)
                     except NoSuchElementException as e:
                         break
+                    except AssertionError as e:
+                        continue
+
             else:
                 break
 
