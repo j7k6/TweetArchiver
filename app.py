@@ -5,6 +5,7 @@ from selenium.webdriver import Firefox
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
 import csv
 import datetime
 import logging
@@ -174,30 +175,20 @@ class Browser:
 
                 continue
 
-            start_time = time.time()
-            total_time = 0
-
             for msg in error_messages:
-                while total_time <= timeout:
-                    try:
-                        self.driver.find_element(By.XPATH, f"//span[text()='{msg}']")
+                try:
+                    assert WebDriverWait(self.driver, timeout).until(lambda d: self.driver.find_element(By.XPATH, f"//span[text()='{msg}']")).text == msg
 
-                        logging.error(f"Twitter Error ['{msg}']! retrying in {retry_delay} seconds...")
+                    logging.error(f"Twitter Error ['{msg}']! retrying in {retry_delay} seconds...")
 
-                        if self.tor is not None:
-                            self.tor.renew_circuit()
+                    if self.tor is not None:
+                        self.tor.renew_circuit()
 
-                        time.sleep(retry_delay)
+                    time.sleep(retry_delay)
 
-                        continue
-                    except NoSuchElementException as e:
-                        pass
-
-                    time.sleep(.1)
-
-                    total_time = time.time() - start_time
-                else:
                     continue
+                except (NoSuchElementException, TimeoutException) as e:
+                    pass
             else:
                 break
 
@@ -261,7 +252,6 @@ class Twitter:
                     tweet_id = tweet.find_element(By.CSS_SELECTOR, "time").find_element(By.XPATH, "..").get_attribute("href").split("/")[-1]
                     tweet_ids.append(tweet_id)
                 except Exception as e:
-                    logging.debug(e)
                     pass
 
             try:
@@ -419,13 +409,11 @@ if __name__ == "__main__":
             try:
                 date_start = sys.argv[2]
             except IndexError as e:
-                logging.debug(e)
                 date_start = None
 
             try:
                 date_end = sys.argv[3]
             except IndexError as e:
-                logging.debug(e)
                 date_end = datetime.datetime.today().strftime("%Y-%m-%d")
 
             if date_start is None:
