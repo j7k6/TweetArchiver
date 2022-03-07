@@ -158,9 +158,6 @@ class Browser:
         error_messages = ["Sorry, you are rate limited. Please wait a few moments then try again.",
                           "Something went wrong. Try reloading."]
 
-        if self.tor is not None:
-            timeout *= 2
-
         while True:
             try:
                 self.driver.delete_all_cookies()
@@ -175,7 +172,10 @@ class Browser:
 
                 continue
 
-            time.sleep(timeout)
+            if self.tor is None:
+                time.sleep(timeout)
+            else:
+                time.sleep((timeout*2))
 
             for msg in error_messages:
                 while True:
@@ -189,7 +189,7 @@ class Browser:
 
                         time.sleep(retry_delay)
 
-                        continue
+                        self.request(url, timeout, retry_delay)
                     except NoSuchElementException as e:
                         break
             else:
@@ -221,7 +221,7 @@ class Twitter:
             quit()
 
 
-    def scrape_tweets(self, browser, date_start, date_end, ignore_lockfile, max_retries=3):
+    def scrape_tweets(self, browser, date_start, date_end, ignore_lockfile=False, max_retries=3):
         tweets_total = 0
 
         while datetime.datetime.strptime(date_start, "%Y-%m-%d") <= datetime.datetime.strptime(date_end, "%Y-%m-%d"):
@@ -235,8 +235,12 @@ class Twitter:
 
             tweets = []
 
+            no_results = False
+
             try:
                 browser.driver.find_element(By.XPATH, f"//span[text()='No results for \"{search_query}\"']")
+                
+                no_results = True
             except NoSuchElementException as e:
                 t = -1
 
@@ -247,6 +251,10 @@ class Twitter:
                     time.sleep(1)
 
                     tweets = browser.driver.find_elements(By.CSS_SELECTOR, "article")
+
+            if not no_results and len(tweets) == 0:
+                logging.debug(f"Search Error! Retrying ({date_start})...")
+                self.scrape_tweets(browser, date_start, date_end, ignore_lockfile, max_retries)
 
             tweet_ids = []
 
@@ -311,7 +319,7 @@ class Twitter:
             tweet_date_element = WebDriverWait(browser.driver, timeout).until(lambda d: browser.driver.find_element(By.XPATH, f"//a[translate(@href, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='/{self.username}/status/{tweet_id}']"))
             tweet_element = tweet_date_element.find_element(By.XPATH, f"../../../../../../../../../..")
         except Exception as e:
-            logging.info(f"Tweet Error! Timeout reached ({tweet_id})...")
+            logging.error(f"Tweet Error! Timeout reached ({tweet_id})...")
 
             if self.tor is not None:
                 self.tor.renew_circuit()
