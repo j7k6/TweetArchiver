@@ -85,7 +85,6 @@ class Tor:
 
             assert not tor_error
         except Exception as e:
-            logging.debug(e)
             logging.error("Tor Error! Not connected... Exiting")
             quit()
 
@@ -98,19 +97,16 @@ class Tor:
         try:
             self.proc.kill()
         except ProcessLookupError as e:
-            logging.debug(e)
             pass
 
         try:
             os.remove(self.torrc)
         except FileNotFoundError as e:
-            logging.debug(e)
             pass
 
         try:
             shutil.rmtree(self.data_directory, ignore_errors=True)
         except FileNotFoundError as e:
-            logging.debug(e)
             pass
 
 
@@ -231,6 +227,8 @@ class Twitter:
             search_query = f"from:{username} exclude:retweets since:{date_start} until:{date_until}"
             search_url = f"https://twitter.com/search?q={urllib.parse.quote(search_query)}&src=typed_query&f=live"
 
+            logging.debug(search_url)
+
             browser.request(search_url)
 
             tweets = []
@@ -270,7 +268,6 @@ class Twitter:
                     with open(os.path.join(data_path, username, f"{self.username}.lock"), "w") as f:
                         f.write(f"{date_start}")
                 except:
-                    logging.debug(e)
                     pass
 
             logging.info(f"{date_current} ({len(tweet_ids)})")
@@ -306,7 +303,6 @@ class Twitter:
 
                         return True
         except FileNotFoundError as e:
-            logging.debug(e)
             pass
 
         tweet_url = f"https://twitter.com/{self.username}/status/{tweet_id}"
@@ -395,7 +391,7 @@ if __name__ == "__main__":
             logging.error("Error! No usernames given... Exiting")
             quit()
 
-        logging.debug(f"Usernames found: {', '.join(usernames)}")
+        logging.info(f"Usernames found: {', '.join(usernames)}")
 
         tor = None
 
@@ -426,7 +422,6 @@ if __name__ == "__main__":
 
                     logging.info(f"Lockfile found!")
                 except Exception as e:
-                    logging.debug(e)
                     date_start = Twitter(username, tor).get_joined_date(browser)
 
             try:
@@ -447,7 +442,6 @@ if __name__ == "__main__":
             try:
                 os.makedirs(os.path.join(data_path, username, "screenshots"))
             except OSError as e:
-                logging.debug(e)
                 pass
 
             Twitter(username, tor).scrape_tweets(browser, date_start, date_end, ignore_lockfile)
@@ -457,7 +451,6 @@ if __name__ == "__main__":
         try:
             browser.quit()
         except:
-            logging.debug(e)
             pass
 
         if tor is not None:
