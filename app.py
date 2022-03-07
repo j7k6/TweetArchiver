@@ -266,12 +266,11 @@ class Twitter:
                 except Exception as e:
                     pass
 
-            if not ignore_lockfile:
-                try:
-                    with open(os.path.join(data_path, username, f"{self.username}.lock"), "w") as f:
-                        f.write(f"{date_start}")
-                except:
-                    pass
+            try:
+                with open(os.path.join(data_path, username, f"{self.username}.lock"), "w") as f:
+                    f.write(f"{date_start}")
+            except:
+                pass
 
             logging.info(f"{date_current} ({len(tweet_ids)})")
 
