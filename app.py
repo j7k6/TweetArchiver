@@ -175,10 +175,12 @@ class Browser:
 
                 continue
 
+            time.sleep(timeout)
+
             for msg in error_messages:
                 while True:
                     try:
-                        assert WebDriverWait(self.driver, timeout).until(lambda d: self.driver.find_element(By.XPATH, f"//span[text()='{msg}']")).text == msg
+                        assert self.driver.find_element(By.XPATH, f"//span[text()='{msg}']").text == msg
 
                         logging.error(f"Twitter Error ['{msg}']! retrying in {retry_delay} seconds...")
 
@@ -188,7 +190,7 @@ class Browser:
                         time.sleep(retry_delay)
 
                         continue
-                    except Exception as e:
+                    except NoSuchElementException as e:
                         break
             else:
                 break
