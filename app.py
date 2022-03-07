@@ -437,7 +437,8 @@ if __name__ == "__main__":
 
                 if tor is not None:
                     tor.quit()
-
+                 
+                browser.quit()
                 quit()
 
             logging.info(f"Start: {date_start}")
