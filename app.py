@@ -303,21 +303,10 @@ class Twitter:
 
         browser.request(tweet_url)
 
-        total_time = time.time() - start_time
-
-        while total_time <= timeout:
-            try:
-                tweet_date_element = browser.driver.find_element(By.XPATH, f"//a[translate(@href, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='/{self.username}/status/{tweet_id}']")
-                tweet_element = tweet_date_element.find_element(By.XPATH, f"../../../../../../../../../..")
-
-                break
-            except NoSuchElementException as e:
-                time.sleep(.1)
-
-                total_time = time.time() - start_time
-
-                continue
-        else:
+        try:
+            tweet_date_element = WebDriverWait(browser.driver, timeout).until(lambda d: browser.driver.find_element(By.XPATH, f"//a[translate(@href, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='/{self.username}/status/{tweet_id}']"))
+            tweet_element = tweet_date_element.find_element(By.XPATH, f"../../../../../../../../../..")
+        except (NoSuchElementException, TimeoutException)  as e:
             logging.info(f"Tweet Error! Timeout reached ({tweet_id})...")
 
             if self.tor is not None:
