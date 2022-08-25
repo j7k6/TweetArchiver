@@ -141,7 +141,13 @@ class Browser:
             options.set_preference("network.proxy.socks_port", tor.socks_port)
             options.set_preference("network.proxy.socks_remote_dns", False)
 
-        self.driver = Firefox(options=options)
+        while True:
+            try:
+                self.driver = Firefox(options=options)
+                break
+            except selenium.common.exceptions.WebDriverException:
+                continue
+
         self.driver.set_page_load_timeout(load_timeout)
 
 
